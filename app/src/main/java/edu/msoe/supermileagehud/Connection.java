@@ -78,7 +78,7 @@ public class Connection extends AppCompatActivity
                     try
                     {
                         String line = new String(receivePacket.getData(), 0, receivePacket.getLength());
-
+                        
                         publishProgress(new JSONArray(line));
                     } catch (JSONException e)
                     {
