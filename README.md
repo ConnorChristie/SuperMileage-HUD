@@ -1,4 +1,4 @@
-# SuperMileage-HUD
+# SuperMileage HUD
 The HUD for the SuperMileage car. Displays things such as speed and RPM.
 
 ## About
