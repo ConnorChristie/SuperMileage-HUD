@@ -217,7 +217,7 @@ public class Connection extends AppCompatActivity
             dir.mkdirs();
 
             DateFormat df = new SimpleDateFormat("MM-dd-yy_hh:mm:ss");
-
+            
             File logFile = new File(dir, "Log_" + df.format(System.currentTimeMillis()) + ".csv");
 
             try
