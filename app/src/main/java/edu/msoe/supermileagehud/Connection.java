@@ -2,11 +2,9 @@ package edu.msoe.supermileagehud;
 
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Environment;
 import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.Toolbar;
-import android.util.JsonReader;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -17,13 +15,16 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.Socket;
-import java.nio.ByteBuffer;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 
 public class Connection extends AppCompatActivity
 {
@@ -34,6 +35,10 @@ public class Connection extends AppCompatActivity
 
     private TextView speedView;
     private TextView rpmView;
+    private TextView latencyView;
+
+    private long startTime;
+    private BufferedWriter logWriter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState)
@@ -43,6 +48,10 @@ public class Connection extends AppCompatActivity
 
         speedView = (TextView) findViewById(R.id.speedLabel);
         rpmView = (TextView) findViewById(R.id.rpmLabel);
+        latencyView = (TextView) findViewById(R.id.latency);
+
+        //Create new log file
+        createLogFile();
 
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
         fab.setOnClickListener(new View.OnClickListener()
@@ -53,6 +62,30 @@ public class Connection extends AppCompatActivity
                 new ConnectionTask().execute();
             }
         });
+    }
+
+    @Override
+    protected void onPause()
+    {
+        super.onPause();
+
+        try
+        {
+            logWriter.flush();
+            logWriter.close();
+        } catch (IOException e)
+        {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    protected void onResume()
+    {
+        super.onResume();
+
+        //Create new log file
+        createLogFile();
     }
 
     private class ConnectionTask extends AsyncTask<Void, JSONArray, Void>
@@ -70,6 +103,8 @@ public class Connection extends AppCompatActivity
                 DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
 
                 System.out.println("Created");
+
+                startTime = System.currentTimeMillis();
 
                 while (true)
                 {
@@ -121,6 +156,8 @@ public class Connection extends AppCompatActivity
         @Override
         protected void onProgressUpdate(JSONArray... values)
         {
+            String logData = (System.currentTimeMillis() - startTime) + "";
+
             for (int i = 0; i < values[0].length(); i++)
             {
                 try
@@ -133,9 +170,23 @@ public class Connection extends AppCompatActivity
                     if (data.equalsIgnoreCase("speed"))
                     {
                         speedView.setText(value.toString());
+
+                        logData += "," + value.toString();
                     } else if (data.equalsIgnoreCase("rpm"))
                     {
                         rpmView.setText(value.toString());
+
+                        logData += "," + value.toString();
+                    } else if (data.equalsIgnoreCase("time"))
+                    {
+                        long latency = System.currentTimeMillis() / 1000L - Long.parseLong(value.toString());
+
+                        System.out.println(System.currentTimeMillis() + ", " + Long.parseLong(value.toString()));
+                        System.out.println("Latency: " + latency);
+
+                        latencyView.setText(latency + " ms");
+
+                        logData += "," + latency;
                     }
                 } catch (JSONException e)
                 {
@@ -143,7 +194,47 @@ public class Connection extends AppCompatActivity
                 }
             }
 
+            try
+            {
+                logWriter.write(logData + "\n");
+            } catch (IOException e)
+            {
+                e.printStackTrace();
+            }
+
             //Snackbar.make(Connection.this.getWindow().getDecorView().getRootView(), values[0], Snackbar.LENGTH_LONG).setAction("Action", null).show();
+        }
+    }
+
+    private void createLogFile()
+    {
+        String state = Environment.getExternalStorageState();
+
+        if (Environment.MEDIA_MOUNTED.equals(state))
+        {
+            File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "SuperMileage-Logs");
+
+            dir.mkdirs();
+
+            DateFormat df = new SimpleDateFormat("MM-dd-yy_hh:mm:ss");
+
+            File logFile = new File(dir, "Log_" + df.format(System.currentTimeMillis()) + ".csv");
+
+            try
+            {
+                logFile.createNewFile();
+
+                FileWriter fw = new FileWriter(logFile.getAbsoluteFile());
+                logWriter = new BufferedWriter(fw);
+
+                logWriter.write("Time,Speed,RPM,Latency\n");
+            } catch (IOException e)
+            {
+                e.printStackTrace();
+            }
+        } else
+        {
+            System.out.println("Log file directory is not writable");
         }
     }
 
