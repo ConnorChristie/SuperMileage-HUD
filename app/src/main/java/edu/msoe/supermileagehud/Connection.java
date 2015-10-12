@@ -1,10 +1,17 @@
 package edu.msoe.supermileagehud;
 
+import android.content.Context;
+import android.content.Intent;
+import android.hardware.usb.UsbAccessory;
+import android.hardware.usb.UsbManager;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.ParcelFileDescriptor;
 import android.support.design.widget.FloatingActionButton;
+import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -17,12 +24,20 @@ import org.json.JSONObject;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileDescriptor;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.PrintStream;
+import java.io.PrintWriter;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 
@@ -59,7 +74,52 @@ public class Connection extends AppCompatActivity
             @Override
             public void onClick(View view)
             {
-                new ConnectionTask().execute();
+                Runnable r = new Runnable()
+                {
+                    @Override
+                    public void run()
+                    {
+                        ServerSocket serverSocket = null;
+                        try
+                        {
+                            serverSocket = new ServerSocket(5001);
+
+                            while (true)
+                            {
+                                Socket clientSocket = serverSocket.accept();
+                                //Waiting for raspberry pi to connect to android device
+                                Log.d("Connecting", "Waiting for connection.....");
+                                try
+                                {
+                                    PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);
+                                    BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+
+                                    String line = in.readLine();
+
+                                    out.println("out: " + line);
+
+                                    in.close();
+
+                                    out.flush();
+                                    out.close();
+                                } catch (IOException e)
+                                {
+                                    e.printStackTrace();
+                                }
+
+                            }
+                        } catch (IOException e)
+                        {
+                            e.printStackTrace();
+                        }
+
+                        Log.d("epics", "Connection successful");
+                        Log.d("epics", "Waiting for input.....");
+                    }
+                };
+                new Thread(r).start();
+
+                //new ConnectionTask().execute();
             }
         });
     }
@@ -97,32 +157,7 @@ public class Connection extends AppCompatActivity
             {
                 System.out.println("Starting");
 
-                DatagramSocket serverSocket = new DatagramSocket(2004);
-
-                byte[] receiveData = new byte[1024];
-                DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
-
-                System.out.println("Created");
-
-                startTime = System.currentTimeMillis();
-
-                while (true)
-                {
-                    serverSocket.receive(receivePacket);
-
-                    try
-                    {
-                        String line = new String(receivePacket.getData(), 0, receivePacket.getLength());
-                        
-                        publishProgress(new JSONArray(line));
-                    } catch (JSONException e)
-                    {
-                        e.printStackTrace();
-                    }
-                }
-
-                /*
-                socket = new Socket("192.168.1.3", 50000);
+                socket = new Socket("localhost", 5052);
 
                 socketIn = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 socketOut = new PrintStream(socket.getOutputStream());
@@ -136,6 +171,7 @@ public class Connection extends AppCompatActivity
 
                 while ((line = socketIn.readLine()) != null)
                 {
+                    /*
                     try
                     {
                         publishProgress(new JSONArray(line));
@@ -143,8 +179,8 @@ public class Connection extends AppCompatActivity
                     {
                         e.printStackTrace();
                     }
+                    */
                 }
-                */
             } catch (IOException e)
             {
                 e.printStackTrace();
@@ -217,7 +253,7 @@ public class Connection extends AppCompatActivity
             dir.mkdirs();
 
             DateFormat df = new SimpleDateFormat("MM-dd-yy_hh:mm:ss");
-            
+
             File logFile = new File(dir, "Log_" + df.format(System.currentTimeMillis()) + ".csv");
 
             try
