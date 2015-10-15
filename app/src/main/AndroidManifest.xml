@@ -17,7 +17,7 @@
         <uses-library android:name="com.android.future.usb.accessory" />
 
         <activity
-            android:name=".Connection"
+            android:name=".ConnectionActivity"
             android:label="@string/app_name"
             android:theme="@style/AppTheme.NoActionBar"
             android:screenOrientation="landscape" >
