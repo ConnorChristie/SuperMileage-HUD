@@ -1,5 +1,6 @@
 package edu.msoe.supermileagehud;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v7.app.AppCompatActivity;
@@ -19,6 +20,8 @@ import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 
+import edu.msoe.supermileagehud.RaspberryPi.ConnectionThread;
+
 public class ConnectionActivity extends AppCompatActivity
 {
     //The port that is forwarded by ADB, the pi connects to us through this port
@@ -36,152 +39,18 @@ public class ConnectionActivity extends AppCompatActivity
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_connection);
 
-        declareElements();
-
-        try
-        {
-            //Start the socket server
-            startServerSocket();
-        } catch (IOException e)
-        {
-            e.printStackTrace();
-        }
-
         //Example of a floating button
-        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
+        final FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
         fab.setOnClickListener(new View.OnClickListener()
         {
             @Override
             public void onClick(View view)
             {
+                new ConnectionThread(ConnectionActivity.this, PORT).start();
 
+                fab.hide();
             }
         });
-    }
-
-    /**
-     * Declares the elements for the layout
-     */
-    private void declareElements()
-    {
-        mSpeedView = (TextView) findViewById(R.id.speedLabel);
-        mRpmView = (TextView) findViewById(R.id.rpmLabel);
-        mLatencyView = (TextView) findViewById(R.id.latency);
-    }
-
-    /**
-     * Starts the server socket to begin listening for the raspberry pi
-     *
-     * @throws IOException
-     */
-    private void startServerSocket() throws IOException
-    {
-        serverSocket = new ServerSocket(PORT);
-
-        new Thread(new ConnectorThread()).start();
-    }
-
-    /**
-     * The thread that waits for the connection from the raspberry pi
-     */
-    private class ConnectorThread implements Runnable
-    {
-        @Override
-        public void run()
-        {
-            while (true)
-            {
-                try
-                {
-                    Socket clientSocket = serverSocket.accept();
-
-                    //Start new thread for the communication
-                    new Thread(new ConnectionThread(clientSocket)).start();
-                } catch (IOException e)
-                {
-                    e.printStackTrace();
-                }
-            }
-        }
-    }
-
-    /**
-     * The thread that communicates to the raspberry pi
-     * Receive and send data to and from the pi
-     */
-    private class ConnectionThread implements Runnable
-    {
-        private Socket socket;
-
-        public ConnectionThread(Socket socket)
-        {
-            this.socket = socket;
-        }
-
-        @Override
-        public void run()
-        {
-            try
-            {
-                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                PrintWriter out = new PrintWriter(socket.getOutputStream());
-
-                String line;
-
-                while ((line = in.readLine()) != null)
-                {
-                    try
-                    {
-                        final JSONArray value = new JSONArray(line);
-
-                        ConnectionActivity.this.runOnUiThread(new Runnable()
-                        {
-                            @Override
-                            public void run()
-                            {
-                                //Loop through the JSONArray
-                                for (int i = 0; i < value.length(); i++)
-                                {
-                                    try
-                                    {
-                                        JSONObject obj = value.getJSONObject(i);
-
-                                        String data = obj.get("data").toString();
-                                        Object value = obj.get("value");
-
-                                        //Do the following if the object's data value is equal to...
-                                        if (data.equalsIgnoreCase("speed"))
-                                        {
-                                            mSpeedView.setText(value.toString());
-                                        } else if (data.equalsIgnoreCase("rpm"))
-                                        {
-                                            mRpmView.setText(value.toString());
-                                        } else if (data.equalsIgnoreCase("time"))
-                                        {
-                                            long latency = Long.parseLong(value.toString()) - System.currentTimeMillis() / 1000L;
-
-                                            mLatencyView.setText(latency + " ms");
-                                        }
-                                    } catch (JSONException e)
-                                    {
-                                        e.printStackTrace();
-                                    }
-                                }
-                            }
-                        });
-                    } catch (JSONException e)
-                    {
-                        e.printStackTrace();
-                    }
-                }
-
-                in.close();
-                out.close();
-            } catch (IOException e)
-            {
-                e.printStackTrace();
-            }
-        }
     }
 
     @Override
